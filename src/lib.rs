@@ -194,9 +194,6 @@ pub trait MTBehavior<T, Y, R, D, S, L, E, P> {
         dat: impl FnMut(&mut Self, &mut ModuleTransform<T, Y, R, D, S, L, E, P>, Id<D>) -> Id<P>,
     ) -> P;
 }
-unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {
-    return std::mem::transmute(a);
-}
 pub type ValueTransMap<T, Y, R, D, S, L, E, P> =
     Rc<RefCell<BTreeMap<Id<ValueDef<T, Y, R, D>>, Id<ValueDef<S, L, E, P>>>>>;
 impl<T: Clone, Y: Clone, R: Clone, D: Clone, S, L, E: Default, P> ModuleTransform<T, Y, R, D, S, L, E, P> {
