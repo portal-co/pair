@@ -2,6 +2,11 @@
 name = "pair"
 version = "0.1.0"
 edition = "2021"
+authors = ["gkgoat","Portal Computer"]
+description = "Portal Alterable IR"
+repository = "https://github.com/portal-co/pair"
+license = "MIT OR Apache-2.0" # This license supercedes the absence of one in the repository
+keywords = ["ssa","ir"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
