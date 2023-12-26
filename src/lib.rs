@@ -248,9 +248,14 @@ impl<T: Clone, Y: Clone, R: Clone, D: Clone, S, L, E: Default, P> ModuleTransfor
         return me;
         // });
     }
-    pub fn dat<W: MTBehavior<T, Y, R, D, S, L, E, P>>(&mut self, w: &mut W, d: Id<D>) -> Id<P>{
-        let d = w.datum(self, self.input.data[d].clone(), |w,t,f|t.func(w,f), |w,t,d|t.dat(w, d));
-        return self.out.data.alloc(d);
+    pub fn dat<W: MTBehavior<T, Y, R, D, S, L, E, P>>(&mut self, w: &mut W, dd: Id<D>) -> Id<P>{
+        if let Some(b) = self.datum_cache.get(&dd){
+            return *b;
+        }
+        let d = w.datum(self, self.input.data[dd].clone(), |w,t,f|t.func(w,f), |w,t,d|t.dat(w, d));
+        let e = self.out.data.alloc(d);
+        self.datum_cache.insert(dd, e);
+        return e;
     }
 }
 #[cfg(test)]
