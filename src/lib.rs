@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use std::{cell::RefCell, collections::{BTreeMap, BTreeSet}, rc::Rc};
 
 use id_arena::{Arena, Id};
 
@@ -85,7 +85,7 @@ impl<T: 'static, Y: 'static, R: 'static, D: 'static> IntoIterator for Params<T, 
 
 pub enum ValueDef<T, Y, R, D> {
     Param(usize),
-    Emit(T, Params<T, Y, R, D>, Y),
+    Emit(T, Params<T, Y, R, D>, Y, BTreeSet<Id<ValueDef<T,Y,R,D>>>),
     Alias(Value<T, Y, R, D>),
 }
 
@@ -93,7 +93,7 @@ impl<T: Clone, Y: Clone, R: Clone, D> Clone for ValueDef<T, Y, R, D> {
     fn clone(&self) -> Self {
         match self {
             Self::Param(arg0) => Self::Param(arg0.clone()),
-            Self::Emit(arg0, arg1, arg2) => Self::Emit(arg0.clone(), arg1.clone(), arg2.clone()),
+            Self::Emit(arg0, arg1, arg2,arg3) => Self::Emit(arg0.clone(), arg1.clone(), arg2.clone(),arg3.clone()),
             Self::Alias(arg0) => Self::Alias(arg0.clone()),
         }
     }
