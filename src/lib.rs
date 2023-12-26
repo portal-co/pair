@@ -143,10 +143,15 @@ pub struct ModuleTransform<T, Y, R, D, S, L, E, P> {
     pub datum_cache: BTreeMap<Id<D>, Id<P>>,
     pub code_cache: BTreeMap<Id<Fun<T, Y, R, D>>, Id<Fun<S, L, E, P>>>,
 }
+pub struct FuncTransformCtx<T, Y, R, D, S, L, E, P> {
+    pub input: Id<Fun<T,Y,R,D>>,
+    pub output: Id<Fun<S,L,E,P>>,
+}
 pub trait MTBehavior<T, Y, R, D, S, L, E, P> {
     fn value(
         &mut self,
         ctx: &mut ModuleTransform<T, Y, R, D, S, L, E, P>,
+        fun_ctx: FuncTransformCtx<T,Y,R,D,S,L,E,P>,
         def: ValueDef<T, Y, R, D>,
         value: impl FnMut(
             &mut Self,
@@ -163,6 +168,7 @@ pub trait MTBehavior<T, Y, R, D, S, L, E, P> {
     fn terminator(
         &mut self,
         ctx: &mut ModuleTransform<T, Y, R, D, S, L, E, P>,
+        fun_ctx: FuncTransformCtx<T,Y,R,D,S,L,E,P>,
         def: R,
         value: impl FnMut(
             &mut Self,
@@ -215,6 +221,7 @@ impl<T: Clone, Y: Clone, R: Clone, D: Clone, S, L, E: Default, P> ModuleTransfor
             };
             w.value(
                 self,
+                FuncTransformCtx { input: f.clone(), output: *self.code_cache.get(&f).unwrap() },
                 self.input.code[f].values[a].clone(),
                 |w, t, v| t.func_value(w, f, m.clone(), v),
                 |w, t, f| t.func(w, f),
@@ -239,6 +246,7 @@ impl<T: Clone, Y: Clone, R: Clone, D: Clone, S, L, E: Default, P> ModuleTransfor
         let a = &self.input.code[f.clone()];
         let t = w.terminator(
             self,
+            FuncTransformCtx { input: f.clone(), output: me.clone() },
             self.input.code[f].terminator.clone(),
             |w, t, v| t.func_value(w, f, m.clone(), v),
             |w, t, f| t.func(w, f),
