@@ -3,6 +3,11 @@ use std::ops::{Index, IndexMut};
 use id_arena::{Arena, Id};
 
 use crate::{Fun, ValueDef, Module};
+#[cfg(feature = "waffle")]
+pub mod waffle;
+pub unsafe fn unbound<'a,'b,T>(a: &'a mut T) -> &'b mut T{
+    std::mem::transmute(a)
+}
 
 pub trait ArenaLike<T>: Index<Self::Id, Output = T> + IndexMut<Self::Id, Output = T>{
     type Id;

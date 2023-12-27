@@ -12,3 +12,10 @@ keywords = ["ssa","ir"]
 
 [dependencies]
 id-arena = "2.2.1"
+waffle = {version="0.0.22",optional=true}
+
+[features]
+waffle = ["dep:waffle"]
+
+[package.metadata."docs.rs"]
+all-features = true

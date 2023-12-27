@@ -8,6 +8,8 @@ use id_arena::{Arena, Id};
 
 pub mod compat;
 pub mod pass;
+pub mod utils;
+pub mod adapt;
 
 pub struct Value<T, Y, R, D> {
     pub id: Id<ValueDef<T, Y, R, D>>,
