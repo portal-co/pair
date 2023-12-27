@@ -1,8 +1,20 @@
+use waffle::Type;
+
 use self::base::{BlockRef, ExportData, GetModule, MFCache};
 
-use super::{FunLike, ModLike};
+use super::{FunLike, ModLike, typed::{TypedValue, TypedFunLike}};
 
 pub mod base;
+impl<M: GetModule> TypedValue<BlockRef<M>> for waffle::ValueDef{
+    type Type = Vec<Type>;
+
+    fn type_of(&self, f: &BlockRef<M>) -> Self::Type {
+        return self.tys(&f.func().unwrap().type_pool).to_owned();
+    }
+}
+impl<M: GetModule> TypedFunLike for BlockRef<M>{
+    type Type = Vec<Type>;
+}
 impl<M: GetModule> FunLike for BlockRef<M> {
     type Value = waffle::ValueDef;
 

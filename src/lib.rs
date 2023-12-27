@@ -129,6 +129,7 @@ impl<T: Clone, Y: Clone, R: Clone, D> Clone for ValueDef<T, Y, R, D> {
 pub struct Fun<T, Y, R, D> {
     pub values: Arena<ValueDef<T, Y, R, D>>,
     pub params: usize,
+    pub input_ty: Vec<Y>,
     pub terminator: R,
 }
 impl<T, Y, R, D> Fun<T, Y, R, D> {
@@ -145,6 +146,7 @@ impl<T, Y, R: Default, D> Default for Fun<T, Y, R, D> {
             values: Default::default(),
             terminator: Default::default(),
             params: Default::default(),
+            input_ty: Default::default(),
         }
     }
 }
@@ -154,6 +156,7 @@ impl<T: Clone, Y: Clone, R: Clone, D> Clone for Fun<T, Y, R, D> {
             values: self.values.clone(),
             params: self.params.clone(),
             terminator: self.terminator.clone(),
+            input_ty: self.input_ty.clone(),
         }
     }
 }

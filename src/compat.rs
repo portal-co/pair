@@ -5,6 +5,7 @@ use id_arena::{Arena, Id};
 use crate::{Fun, Module, ValueDef};
 #[cfg(feature = "waffle")]
 pub mod waffle;
+pub mod typed;
 pub unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {
     std::mem::transmute(a)
 }
