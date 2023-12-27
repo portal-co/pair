@@ -1,9 +1,9 @@
-use self::base::{BlockRef, GetModule, MFCache, ExportData};
+use self::base::{BlockRef, ExportData, GetModule, MFCache};
 
 use super::{FunLike, ModLike};
 
 pub mod base;
-impl<M: GetModule> FunLike for BlockRef<M>{
+impl<M: GetModule> FunLike for BlockRef<M> {
     type Value = waffle::ValueDef;
 
     type Arena = Self;
@@ -27,7 +27,7 @@ impl<M: GetModule> FunLike for BlockRef<M>{
         return &mut self.func_mut().unwrap().blocks[k].terminator;
     }
 }
-impl<M: GetModule> ModLike for MFCache<M>{
+impl<M: GetModule> ModLike for MFCache<M> {
     type Fun = BlockRef<MFCache<M>>;
 
     type Code = Self;

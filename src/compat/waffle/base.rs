@@ -5,7 +5,8 @@ use std::{
 };
 
 use waffle::{
-    Block, BlockTarget, Func, FunctionBody, Signature, SignatureData, Type, Value, ValueDef, Export, ExportKind, TableData, FuncDecl, GlobalData, MemoryData, Table, Global, Memory,
+    Block, BlockTarget, Export, ExportKind, Func, FuncDecl, FunctionBody, Global, GlobalData,
+    Memory, MemoryData, Signature, SignatureData, Table, TableData, Type, Value, ValueDef,
 };
 
 use crate::{compat::ArenaLike, utils::waffle::clone_fn};
@@ -57,19 +58,19 @@ pub trait GetModule {
     fn module(&self) -> &waffle::Module<'static>;
     fn module_mut(&mut self) -> &mut waffle::Module<'static>;
 }
-impl<M: GetModule> Index<waffle::Value> for BlockRef<M>{
+impl<M: GetModule> Index<waffle::Value> for BlockRef<M> {
     type Output = waffle::ValueDef;
 
     fn index(&self, index: waffle::Value) -> &Self::Output {
         return &self.func().unwrap().values[index];
     }
 }
-impl<M: GetModule> IndexMut<waffle::Value> for BlockRef<M>{
+impl<M: GetModule> IndexMut<waffle::Value> for BlockRef<M> {
     fn index_mut(&mut self, index: waffle::Value) -> &mut Self::Output {
         return &mut self.func_mut().unwrap().values[index];
     }
 }
-impl<M: GetModule> ArenaLike<waffle::ValueDef> for BlockRef<M>{
+impl<M: GetModule> ArenaLike<waffle::ValueDef> for BlockRef<M> {
     type Id = waffle::Value;
 
     fn push(&mut self, a: waffle::ValueDef) -> Self::Id {
@@ -169,42 +170,42 @@ pub enum ExportKey {
 pub struct MFCache<M: GetModule> {
     ptr: Option<M>,
     cache: UnsafeCell<BTreeMap<FuncAndBlock, BlockRef<MFCache<M>>>>,
-    data_cache: UnsafeCell<BTreeMap<ExportKey,ExportData>>
+    data_cache: UnsafeCell<BTreeMap<ExportKey, ExportData>>,
 }
-impl<M: GetModule> Drop for MFCache<M>{
+impl<M: GetModule> Drop for MFCache<M> {
     fn drop(&mut self) {
-        if let None = self.ptr{
+        if let None = self.ptr {
             return;
         }
         self.flush();
     }
 }
 impl<M: GetModule> MFCache<M> {
-    pub fn create_export(&self, index: ExportKey) -> ExportData{
-        match index{
+    pub fn create_export(&self, index: ExportKey) -> ExportData {
+        match index {
             ExportKey::Table(t) => ExportData::Table(self.module().tables[t].clone()),
             ExportKey::Global(g) => ExportData::Global(self.module().globals[g].clone()),
             ExportKey::Memory(m) => ExportData::Memory(self.module().memories[m].clone()),
         }
     }
-    pub fn into_inner(mut self) -> M{
+    pub fn into_inner(mut self) -> M {
         self.flush();
         return self.ptr.take().unwrap();
     }
-    pub fn from_inner(m: M) -> Self{
-        return Self{
+    pub fn from_inner(m: M) -> Self {
+        return Self {
             ptr: Some(m),
             cache: UnsafeCell::new(BTreeMap::new()),
             data_cache: UnsafeCell::new(BTreeMap::new()),
         };
     }
-    pub fn flush(&mut self){
-        for (k,v) in std::mem::take(self.data_cache.get_mut()){
-            match (k,v){
+    pub fn flush(&mut self) {
+        for (k, v) in std::mem::take(self.data_cache.get_mut()) {
+            match (k, v) {
                 (ExportKey::Table(t), ExportData::Table(d)) => self.module_mut().tables[t] = d,
                 (ExportKey::Global(g), ExportData::Global(d)) => self.module_mut().globals[g] = d,
                 (ExportKey::Memory(m), ExportData::Memory(d)) => self.module_mut().memories[m] = d,
-                _ => panic!("invalid key state")
+                _ => panic!("invalid key state"),
             }
         }
     }
@@ -265,23 +266,27 @@ impl<M: GetModule> ArenaLike<BlockRef<MFCache<M>>> for MFCache<M> {
         return a.k;
     }
 }
-impl<M: GetModule> Index<ExportKey> for MFCache<M>{
+impl<M: GetModule> Index<ExportKey> for MFCache<M> {
     type Output = ExportData;
 
     fn index(&self, index: ExportKey) -> &Self::Output {
-        return unsafe{&mut *self.data_cache.get()}.entry(index.clone()).or_insert_with(||self.create_export(index));
+        return unsafe { &mut *self.data_cache.get() }
+            .entry(index.clone())
+            .or_insert_with(|| self.create_export(index));
     }
 }
-impl<M: GetModule> IndexMut<ExportKey> for MFCache<M>{
+impl<M: GetModule> IndexMut<ExportKey> for MFCache<M> {
     fn index_mut(&mut self, index: ExportKey) -> &mut Self::Output {
-        return unsafe{&mut *self.data_cache.get()}.entry(index.clone()).or_insert_with(||self.create_export(index));
+        return unsafe { &mut *self.data_cache.get() }
+            .entry(index.clone())
+            .or_insert_with(|| self.create_export(index));
     }
 }
-impl<M: GetModule> ArenaLike<ExportData> for MFCache<M>{
+impl<M: GetModule> ArenaLike<ExportData> for MFCache<M> {
     type Id = ExportKey;
 
     fn push(&mut self, a: ExportData) -> Self::Id {
-        match a{
+        match a {
             ExportData::Table(t) => ExportKey::Table(self.module_mut().tables.push(t)),
             ExportData::Global(g) => ExportKey::Global(self.module_mut().globals.push(g)),
             ExportData::Memory(m) => ExportKey::Memory(self.module_mut().memories.push(m)),

@@ -2,18 +2,18 @@ use std::ops::{Index, IndexMut};
 
 use id_arena::{Arena, Id};
 
-use crate::{Fun, ValueDef, Module};
+use crate::{Fun, Module, ValueDef};
 #[cfg(feature = "waffle")]
 pub mod waffle;
-pub unsafe fn unbound<'a,'b,T>(a: &'a mut T) -> &'b mut T{
+pub unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {
     std::mem::transmute(a)
 }
 
-pub trait ArenaLike<T>: Index<Self::Id, Output = T> + IndexMut<Self::Id, Output = T>{
+pub trait ArenaLike<T>: Index<Self::Id, Output = T> + IndexMut<Self::Id, Output = T> {
     type Id;
     fn push(&mut self, a: T) -> Self::Id;
 }
-impl<T> ArenaLike<T> for Arena<T>{
+impl<T> ArenaLike<T> for Arena<T> {
     type Id = Id<T>;
 
     fn push(&mut self, a: T) -> Self::Id {
@@ -29,8 +29,8 @@ pub trait FunLike {
     fn terminator(&self) -> &Self::Terminator;
     fn terminator_mut(&mut self) -> &mut Self::Terminator;
 }
-impl<T,Y,R,D> FunLike for Fun<T,Y,R,D>{
-    type Value = ValueDef<T,Y,R,D>;
+impl<T, Y, R, D> FunLike for Fun<T, Y, R, D> {
+    type Value = ValueDef<T, Y, R, D>;
 
     type Arena = Arena<Self::Value>;
 
@@ -52,7 +52,7 @@ impl<T,Y,R,D> FunLike for Fun<T,Y,R,D>{
         return &mut self.terminator;
     }
 }
-pub trait ModLike{
+pub trait ModLike {
     type Fun: FunLike;
     type Code: ArenaLike<Self::Fun>;
     fn code(&self) -> &Self::Code;
@@ -62,10 +62,10 @@ pub trait ModLike{
     fn data(&self) -> &Self::Data;
     fn data_mut(&mut self) -> &mut Self::Data;
 }
-impl<T,Y,R,D> ModLike for Module<T,Y,R,D>{
-    type Fun = Fun<T,Y,R,D>;
+impl<T, Y, R, D> ModLike for Module<T, Y, R, D> {
+    type Fun = Fun<T, Y, R, D>;
 
-    type Code = Arena<Fun<T,Y,R,D>>;
+    type Code = Arena<Fun<T, Y, R, D>>;
 
     fn code(&self) -> &Self::Code {
         return &self.code;
@@ -88,6 +88,7 @@ impl<T,Y,R,D> ModLike for Module<T,Y,R,D>{
     }
 }
 
-pub type ValID<A: ModLike> = <<A::Fun as FunLike>::Arena as ArenaLike<<A::Fun as FunLike>::Value>>::Id;
+pub type ValID<A: ModLike> =
+    <<A::Fun as FunLike>::Arena as ArenaLike<<A::Fun as FunLike>::Value>>::Id;
 pub type FunId<A: ModLike> = <A::Code as ArenaLike<A::Fun>>::Id;
 pub type DatId<A: ModLike> = <A::Data as ArenaLike<A::Datum>>::Id;
