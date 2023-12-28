@@ -1,15 +1,16 @@
-use either::Either::Right;
-use waffle::{BlockTarget, Import, Terminator, Type, ValueDef, Operator};
+use either::Either::{Left, Right};
+use waffle::{BlockTarget, Import, Operator, Terminator, Type, ValueDef};
 
-use crate::utils::R;
+use crate::utils::{waffle::vendor::op_outputs, R};
 
 use self::base::{BlockRef, ExportData, FuncAndBlock, GetModule, Importd, MFCache};
 
 use super::{
     call::Call,
+    stmt::{Statement, Stmt},
     tree::{Entry, TreeTerminator, UnTreeTerminator},
     typed::{TypedFunLike, TypedValue},
-    FunLike, ModLike, ast::Statement,
+    FunLike, ModLike, ModLikeIter,
 };
 
 pub mod base;
@@ -222,19 +223,73 @@ impl<M: GetModule, E: Default> UnTreeTerminator<MFCache<M>, BlockRef<MFCache<M>>
         }
     }
 }
-impl<M: GetModule> Statement<MFCache<M>> for ValueDef{
+impl<M: GetModule> Statement<MFCache<M>> for ValueDef {
     type Stmt = Operator;
 
-    fn into_statement(&self, f: &<MFCache<M> as ModLike>::Fun) -> either::Either<(Self::Stmt, Vec<super::ValID<MFCache<M>>>),usize> {
-        todo!()
+    fn into_statement(
+        &self,
+        f: &<MFCache<M> as ModLike>::Fun,
+    ) -> super::stmt::Stmt<Self, MFCache<M>> {
+        match self {
+            ValueDef::BlockParam(_, p, _) => Stmt::Param(*p as usize),
+            ValueDef::Operator(o, l, _) => {
+                Stmt::Basic(o.clone(), f.func().unwrap().arg_pool[l.clone()].to_owned())
+            }
+            ValueDef::PickOutput(v, u, _) => Stmt::Pick(*v, *u as usize),
+            ValueDef::Alias(l) => f.all()[*l].into_statement(f),
+            ValueDef::Placeholder(_) => todo!(),
+            ValueDef::Trace(_, _) => todo!(),
+            ValueDef::None => todo!(),
+        }
     }
 
-    fn from_statement(s: &Self::Stmt, a: &[super::ValID<MFCache<M>>], f: &mut <MFCache<M> as ModLike>::Fun) -> Self {
-        todo!()
+    fn from_statement(
+        s: &super::stmt::Stmt<Self, MFCache<M>>,
+        f: &mut <MFCache<M> as ModLike>::Fun,
+    ) -> Self {
+        match s {
+            Stmt::Basic(s, v) => {
+                let mut sk = vec![];
+                for w in v {
+                    sk.push((f.all()[*w].ty(&f.func().unwrap().type_pool).unwrap(), *w));
+                }
+                let t = op_outputs(f.cur().unwrap().module(), &sk, s).unwrap();
+                let t = f
+                    .func_mut()
+                    .unwrap()
+                    .type_pool
+                    .from_iter(t.iter().map(|a| *a));
+                ValueDef::Operator(
+                    s.clone(),
+                    f.func_mut()
+                        .unwrap()
+                        .arg_pool
+                        .from_iter(v.iter().map(|a| *a)),
+                    t,
+                )
+            }
+            Stmt::Param(p) => ValueDef::Alias(f.params().unwrap()[*p].1),
+            Stmt::Pick(i, u) => {
+                let t = f.all()[*i].tys(&f.func().unwrap().type_pool);
+                return ValueDef::PickOutput(*i, *u as u32, t[*u]);
+            }
+        }
     }
-
-    fn param(p: usize, f: &mut <MFCache<M> as ModLike>::Fun) -> Self {
-        todo!()
+}
+impl<M: GetModule> ModLikeIter for MFCache<M> {
+    fn keys(&self) -> Vec<super::FunId<Self>> {
+        return self
+            .module()
+            .funcs
+            .iter()
+            .flat_map(|f| match self.module().funcs[f].body() {
+                None => vec![],
+                Some(b) => b
+                    .blocks
+                    .iter()
+                    .map(|b| FuncAndBlock { func: f, block: b })
+                    .collect(),
+            })
+            .collect();
     }
-
 }

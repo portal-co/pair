@@ -150,3 +150,4 @@ pub fn clone_fn(f: &mut FunctionBody, basis: &FunctionBody) -> FunCloneRes {
     }
     return FunCloneRes { all };
 }
+pub mod vendor;

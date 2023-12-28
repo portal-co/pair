@@ -9,7 +9,7 @@ pub mod rewrite;
 pub mod rust;
 pub mod tree;
 pub mod typed;
-pub mod ast;
+pub mod stmt;
 
 #[cfg(feature = "waffle")]
 pub mod waffle;
@@ -72,6 +72,9 @@ pub trait ModLike {
     type Data: ArenaLike<Self::Datum>;
     fn data(&self) -> &Self::Data;
     fn data_mut(&mut self) -> &mut Self::Data;
+}
+pub trait ModLikeIter: ModLike{
+    fn keys(&self) -> Vec<FunId<Self>>;
 }
 // impl<T, Y, R, D> ModLike for Module<T, Y, R, D> {
 //     type Fun = Fun<T, Y, R, D>;
