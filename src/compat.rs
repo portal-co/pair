@@ -9,11 +9,16 @@ pub mod rewrite;
 pub mod rust;
 pub mod tree;
 pub mod typed;
+pub mod ast;
+
 #[cfg(feature = "waffle")]
 pub mod waffle;
+#[cfg(feature = "serde")]
+pub mod serde;
 pub unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {
     std::mem::transmute(a)
 }
+
 
 pub trait ArenaLike<T>: Index<Self::Id, Output = T> + IndexMut<Self::Id, Output = T> {
     type Id;

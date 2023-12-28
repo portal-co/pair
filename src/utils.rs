@@ -1,9 +1,10 @@
 use either::Either;
 
 use crate::{
-    compat::{ArenaLike, FunId, FunLike, ModLike, ValIDFun},
+    compat::{ArenaLike, FunId, FunLike, ModLike, ValIDFun, ValID},
     Value, ValueDef,
 };
+use std::{hash::*, collections::hash_map::DefaultHasher};
 
 #[cfg(feature = "rust")]
 pub mod rust;
@@ -29,4 +30,25 @@ impl<Err: Default, T> R<Err> for Option<T> {
             None => Err(Default::default()),
         };
     }
+}
+pub fn my_hash<T>(obj: T) -> u64
+where
+    T: Hash,
+{
+    let mut hasher = DefaultHasher::new();
+    obj.hash(&mut hasher);
+    hasher.finish()
+}
+pub fn var_hash<In: ModLike>(f: FunId<In>, v: ValID<In>) -> String
+where
+    FunId<In>: Hash,
+    ValID<In>: Hash,
+{
+    return format!("v${}", my_hash((f, v)));
+}
+pub fn param_hash<In: ModLike>(f: FunId<In>, v: usize) -> String
+where
+    FunId<In>: Hash,
+{
+    return format!("p${}", my_hash((f, v)));
 }

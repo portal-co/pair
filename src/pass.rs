@@ -1,179 +1,187 @@
-use std::{
-    collections::BTreeMap,
-    ops::{Deref, DerefMut},
-};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use crate::compat::{ArenaLike, DatId, FunId, FunLike, ModLike, Term, Val, ValID, ValIDFun};
-pub struct FunRef<Other: ModLike> {
-    r#ref: *mut Other,
-    pub fun: FunId<Other>,
-}
-impl<Other: ModLike> FunRef<Other>
-where
-    FunId<Other>: Clone,
-{
-    pub fn other(&self) -> &Other {
-        return unsafe { &*self.r#ref };
-    }
-    pub fn other_mut(&mut self) -> &mut Other {
-        return unsafe { &mut *self.r#ref };
-    }
-    pub fn fun(&self) -> &Other::Fun {
-        return &(self.other().code()[self.fun.clone()]);
-    }
-    pub fn fun_mut(&mut self) -> &mut Other::Fun {
-        let f = self.fun.clone();
-        return &mut (self.other_mut().code_mut()[f]);
-    }
-}
-pub trait CodeCache<In: ModLike, T> {
-    fn cache<E>(
-        &mut self,
-        val: ValID<In>,
-        go: impl FnOnce(&mut Self) -> Result<T, E>,
-    ) -> Result<T, E>;
-}
-pub trait ModCodeCache<In: ModLike, T, U> {
-    fn cache(&mut self, fun: FunId<In>, go: impl FnOnce(&mut Self) -> T) -> T;
-    fn cache_datum(&mut self, dat: DatId<In>, go: impl FnOnce(&mut Self) -> U) -> U;
-}
-pub trait PassVal<
-    K,
-    E,
-    Other: ModLike,
-    Fun: PassFun<K, E, Other, In, Value = Self>,
-    In: PassModule<K, E, Other, Fun = Fun>,
->: Sized where
-    <In as ModLike>::Datum: PassDatum<K, E, Other, In>,
-    Fun::Terminator: PassTerm<K, E, Other, Fun, In>,
-{
-    fn rewrite(&self, k: &mut Fun::FunCodeCache, b: &mut FunRef<Other>) -> Result<Val<Other>, E>;
-    fn rewrite_id(
-        k: &mut Fun::FunCodeCache,
-        a: &Fun,
-        b: &mut FunRef<Other>,
-        i: ValIDFun<Fun>,
-    ) -> Result<ValID<Other>, E>
-    where
-        ValIDFun<Fun>: Clone,
-        FunId<Other>: Clone,
-    {
-        return k.cache(i.clone(), move |k| {
-            let r = a.all()[i].rewrite(k, b)?;
-            return Ok(b.fun_mut().all_mut().push(r));
-        });
-    }
-}
-pub trait PassTerm<
-    K,
-    E,
-    Other: ModLike,
-    Fun: PassFun<K, E, Other, In, Terminator = Self>,
-    In: PassModule<K, E, Other, Fun = Fun>,
-> where
-    Fun::Value: PassVal<K, E, Other, Fun, In>,
-    <In as ModLike>::Datum: PassDatum<K, E, Other, In>,
-{
-    fn rewrite(&self, k: &mut Fun::FunCodeCache, om: &mut FunRef<Other>) -> Result<Term<Other>, E>;
-}
-pub trait PassFun<K, E, Other: ModLike, In: PassModule<K, E, Other, Fun = Self>>:
-    FunLike + Sized
-where
-    Self::Value: PassVal<K, E, Other, Self, In>,
-    <In as ModLike>::Datum: PassDatum<K, E, Other, In>,
-    Self::Terminator: PassTerm<K, E, Other, Self, In>,
-{
-    type FunCodeCache: Deref<Target = In::ModCodeCache> + DerefMut + CodeCache<In, ValID<Other>>;
-    fn rewrite(&self, k: &mut In::ModCodeCache, om: &mut Other) -> FunId<Other>;
-}
-pub struct BasicFunCodeCache<K, I: ModLike, V> {
-    re: *mut K,
-    all: BTreeMap<ValID<I>, V>,
-}
-impl<K: Deref, I: ModLike, V> Deref for BasicFunCodeCache<K, I, V> {
-    type Target = K::Target;
+use id_arena::Arena;
 
-    fn deref(&self) -> &Self::Target {
-        return unsafe { &*self.re };
+use crate::compat::*;
+
+pub struct FuncTransformCtx<A: ModLike, B: ModLike> {
+    pub input: <A::Code as ArenaLike<A::Fun>>::Id,
+    pub output: <B::Code as ArenaLike<B::Fun>>::Id,
+}
+pub trait PassStateT<'a, 'b, A: ModLike, B: ModLike> {
+    fn get_input<'c: 'a>(&'c self) -> &'c A;
+    fn get_output<'c: 'b>(&'c mut self) -> &'c mut B;
+}
+pub struct PassState<'a, 'b, A: ModLike, B: ModLike> {
+    pub input: &'a A,
+    pub out: &'b mut B,
+    pub code_cache:
+        BTreeMap<<A::Code as ArenaLike<A::Fun>>::Id, <B::Code as ArenaLike<B::Fun>>::Id>,
+    pub datum_cache:
+        BTreeMap<<A::Data as ArenaLike<A::Datum>>::Id, <B::Data as ArenaLike<B::Datum>>::Id>,
+}
+impl<'a, 'b, A: ModLike, B: ModLike> PassStateT<'a, 'b, A, B> for PassState<'a, 'b, A, B> {
+    fn get_input<'c: 'a>(&'c self) -> &'c A {
+        return self.input;
+    }
+
+    fn get_output<'c: 'b>(&'c mut self) -> &'c mut B {
+        return self.out;
     }
 }
-impl<K: DerefMut, I: ModLike, V> DerefMut for BasicFunCodeCache<K, I, V> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        return unsafe { &mut *self.re };
-    }
-}
-impl<K, I: ModLike, V: Clone> CodeCache<I, V> for BasicFunCodeCache<K, I, V>
-where
-    ValID<I>: Eq + Ord,
-{
-    fn cache<E>(
-        &mut self,
-        val: ValID<I>,
-        go: impl FnOnce(&mut Self) -> Result<V, E>,
-    ) -> Result<V, E> {
-        if let Some(a) = self.all.get(&val) {
-            return Ok(a.clone());
+macro_rules! emitter {
+    ($ty:tt => $trait:tt, $a:tt, $b:tt, $e:tt,$p:tt,$s:tt,$c:lifetime,$d:lifetime) => {
+        pub trait $trait<
+            $c,
+            $d,
+            $a: ModLike,
+            $b: ModLike,
+            $s: PassStateT<$c, $d, $a, $b>,
+            $e,
+            $p: PassBehavior<$a, $b, $e>,
+        >: $ty
+        {
         }
-        let w = go(self)?;
-        self.all.insert(val, w.clone());
-        return Ok(w);
+        impl<
+                $c,
+                $d,
+                $a: ModLike,
+                $b: ModLike,
+                $s: PassStateT<$c, $d, $a, $b>,
+                $e,
+                $p: PassBehavior<$a, $b, $e>,
+                T: $ty,
+            > $trait<$c, $d, $a, $b, $s, $e, $p> for T
+        {
+        }
+    };
+}
+emitter!((FnMut(&mut P, &mut S, ValID<A>) -> Result<ValID<B>,E>) => ValEmit, A, B,E, P,S,'a,'b);
+emitter!((FnMut(&mut P, &mut S, FunId<A>) -> Result<FunId<B>,E>) => FunEmit, A, B,E, P,S,'a,'b);
+emitter!((FnMut(&mut P, &mut S, DatId<A>) -> Result<DatId<B>,E>) => DatEmit, A, B,E, P,S,'a,'b);
+pub trait PassBehavior<A: ModLike, B: ModLike, Err>: Sized {
+    fn value<'a, 'b, S: PassStateT<'a, 'b, A, B>>(
+        &mut self,
+        ctx: &mut S,
+        fun_ctx: FuncTransformCtx<A, B>,
+        it: <A::Fun as FunLike>::Value,
+        value: impl ValEmit<'a, 'b, A, B, S, Err, Self>,
+        fun: impl FunEmit<'a, 'b, A, B, S, Err, Self>,
+        dat: impl DatEmit<'a, 'b, A, B, S, Err, Self>,
+    ) -> Result<<B::Fun as FunLike>::Value, Err>;
+    fn terminator<'a, 'b, S: PassStateT<'a, 'b, A, B>>(
+        &mut self,
+        ctx: &mut S,
+        fun_ctx: FuncTransformCtx<A, B>,
+        it: <A::Fun as FunLike>::Terminator,
+        value: impl ValEmit<'a, 'b, A, B, S, Err, Self>,
+        fun: impl FunEmit<'a, 'b, A, B, S, Err, Self>,
+        dat: impl DatEmit<'a, 'b, A, B, S, Err, Self>,
+    ) -> Result<<B::Fun as FunLike>::Terminator, Err>;
+    fn datum<'a, 'b, S: PassStateT<'a, 'b, A, B>>(
+        &mut self,
+        ctx: &mut S,
+        def: A::Datum,
+        fun: impl FunEmit<'a, 'b, A, B, S, Err, Self>,
+        dat: impl DatEmit<'a, 'b, A, B, S, Err, Self>,
+    ) -> Result<B::Datum, Err>;
+}
+
+pub type ValueTransMap<A: ModLike, B: ModLike> = Rc<RefCell<BTreeMap<ValID<A>, ValID<B>>>>;
+impl<'a, 'b, A: ModLike, B: ModLike> PassState<'a, 'b, A, B>
+where
+    ValID<A>: Eq + Ord + Clone,
+    ValID<B>: Eq + Ord + Clone,
+    FunId<A>: Eq + Ord + Clone,
+    FunId<B>: Eq + Ord + Clone,
+    DatId<A>: Eq + Ord + Clone,
+    DatId<B>: Eq + Ord + Clone,
+    <A::Fun as FunLike>::Value: Clone,
+    <B::Fun as FunLike>::Value: Default,
+    B::Fun: Default,
+    <A::Fun as FunLike>::Terminator: Clone,
+    A::Datum: Clone,
+{
+    pub fn func_value<E>(
+        &mut self,
+        w: &mut impl PassBehavior<A, B, E>,
+        f: FunId<A>,
+        m: ValueTransMap<A, B>,
+        a: ValID<A>,
+    ) -> Result<ValID<B>, E> {
+        {
+            if let Some(x) = m.borrow_mut().get(&a) {
+                return Ok(x.clone());
+            }
+        }
+        let i = self.out.code_mut()[self.code_cache.get(&f).unwrap().clone()]
+            .all_mut()
+            .push(Default::default());
+        let v = {
+            {
+                m.borrow_mut().insert(a.clone(), i.clone())
+            };
+            let f2 = f.clone();
+            w.value(
+                self,
+                FuncTransformCtx {
+                    input: f.clone(),
+                    output: self.code_cache.get(&f).unwrap().clone(),
+                },
+                self.input.code()[f.clone()].all()[a].clone(),
+                |w, t, v| t.func_value(w, f2.clone(), m.clone(), v),
+                |w, t, f| t.func(w, f),
+                |w, t, d| t.dat(w, d),
+            )
+        }?;
+        self.out.code_mut()[self.code_cache.get(&f).unwrap().clone()].all_mut()[i.clone()] = v;
+        return Ok(i);
     }
-}
-pub fn rewrite_basic_fun<
-    K,
-    E,
-    Other: ModLike,
-    Fun: PassFun<
-        K,
-        E,
-        Other,
-        In,
-        Value = V,
-        FunCodeCache = BasicFunCodeCache<In::ModCodeCache, In, ValID<Other>>,
-    >,
-    In: PassModule<K, E, Other, Fun = Fun>,
-    V: PassVal<K, E, Other, Fun, In>,
->(
-    s: &Fun,
-    k: &mut In::ModCodeCache,
-    om: &mut Other,
-) -> Result<FunId<Other>, E>
-where
-    In::Datum: PassDatum<K, E, Other, In>,
-    Fun::Terminator: PassTerm<K, E, Other, Fun, In>,
-    Other::Fun: Default,
-    FunId<Other>: Clone,
-    ValID<Other>: Clone,
-    ValID<In>: Eq + Ord,
-{
-    let f = om.code_mut().push(Default::default());
-    PassTerm::rewrite(
-        s.terminator(),
-        &mut BasicFunCodeCache::<In::ModCodeCache, _, _> {
-            re: k,
-            all: BTreeMap::new(),
-        },
-        &mut FunRef {
-            r#ref: om,
-            fun: f.clone(),
-        },
-    )?;
-    Ok(f)
-}
-pub trait PassDatum<K, E, Other: ModLike, In: PassModule<K, E, Other, Datum = Self>>
-where
-    <In as ModLike>::Fun: PassFun<K, E, Other, In>,
-    Val<In>: PassVal<K, E, Other, <In as ModLike>::Fun, In>,
-    <In::Fun as FunLike>::Terminator: PassTerm<K, E, Other, In::Fun, In>,
-{
-    fn rewrite(&self, k: &mut K) -> Other::Datum;
-}
-pub trait PassModule<K, E, Other: ModLike>: ModLike + Sized
-where
-    Self::Fun: PassFun<K, E, Other, Self>,
-    Self::Datum: PassDatum<K, E, Other, Self>,
-    <Self::Fun as FunLike>::Value: PassVal<K, E, Other, Self::Fun, Self>,
-    <Self::Fun as FunLike>::Terminator: PassTerm<K, E, Other, Self::Fun, Self>,
-{
-    type ModCodeCache: Deref<Target = K> + DerefMut + ModCodeCache<Self, FunId<Other>, DatId<Other>>;
+    pub fn func<Err>(
+        &mut self,
+        w: &mut impl PassBehavior<A, B, Err>,
+        f: FunId<A>,
+    ) -> Result<FunId<B>, Err> {
+        if let Some(i) = self.code_cache.get(&f) {
+            return Ok(i.clone());
+        }
+        let me = self.out.code_mut().push(Default::default());
+        let m = Rc::new(RefCell::new(BTreeMap::new()));
+        // return self.out.code.alloc_with_id(|me| {
+        self.code_cache.insert(f.clone(), me.clone());
+        // let a = &self.input.code()[f.clone()];
+        let f2 = f.clone();
+        let t = w.terminator(
+            self,
+            FuncTransformCtx {
+                input: f.clone(),
+                output: me.clone(),
+            },
+            self.input.code()[f].terminator().clone(),
+            |w, t, v| t.func_value(w, f2.clone(), m.clone(), v),
+            |w, t, f| t.func(w, f),
+            |w, t, d| t.dat(w, d),
+        )?;
+        *self.out.code_mut()[me.clone()].terminator_mut() = t;
+        return Ok(me);
+        // });
+    }
+    pub fn dat<E>(
+        &mut self,
+        w: &mut impl PassBehavior<A, B, E>,
+        dd: DatId<A>,
+    ) -> Result<DatId<B>, E> {
+        if let Some(b) = self.datum_cache.get(&dd) {
+            return Ok(b.clone());
+        }
+        let d = w.datum(
+            self,
+            self.input.data()[dd.clone()].clone(),
+            |w, t, f| t.func(w, f),
+            |w, t, d| t.dat(w, d),
+        )?;
+        let e = self.out.data_mut().push(d);
+        self.datum_cache.insert(dd, e.clone());
+        return Ok(e);
+    }
 }

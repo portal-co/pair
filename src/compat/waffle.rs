@@ -1,14 +1,15 @@
-use waffle::{BlockTarget, Import, Terminator, Type, ValueDef};
+use either::Either::Right;
+use waffle::{BlockTarget, Import, Terminator, Type, ValueDef, Operator};
 
 use crate::utils::R;
 
-use self::base::{BlockRef, ExportData, GetModule, Importd, MFCache};
+use self::base::{BlockRef, ExportData, FuncAndBlock, GetModule, Importd, MFCache};
 
 use super::{
     call::Call,
-    tree::TreeTerminator,
+    tree::{Entry, TreeTerminator, UnTreeTerminator},
     typed::{TypedFunLike, TypedValue},
-    FunLike, ModLike,
+    FunLike, ModLike, ast::Statement,
 };
 
 pub mod base;
@@ -138,10 +139,102 @@ impl<M: GetModule, E: Default> TreeTerminator<MFCache<M>, BlockRef<MFCache<M>>, 
                 block: n.cur_mut().r()?[g.fun].block_in_func(f).r()?,
             })
         }
+        if params.len() == 1 {
+            return Ok(Terminator::CondBr {
+                cond: v,
+                if_true: default,
+                if_false: params[0].clone(),
+            });
+        }
         return Ok(Terminator::Select {
             value: v,
             targets: params,
             default: default,
         });
     }
+}
+impl<M: GetModule, E: Default> UnTreeTerminator<MFCache<M>, BlockRef<MFCache<M>>, E>
+    for Terminator
+{
+    fn get_tree(
+        &self,
+        n: &BlockRef<MFCache<M>>,
+    ) -> Result<super::tree::Tree<MFCache<M>, BlockRef<MFCache<M>>>, E> {
+        match self {
+            Terminator::Br { target } => Ok(super::tree::Tree::Just(Entry {
+                fun: FuncAndBlock {
+                    block: target.block,
+                    func: n.k.func,
+                },
+                args: target.args.clone(),
+            })),
+            Terminator::CondBr {
+                cond,
+                if_true,
+                if_false,
+            } => Ok(super::tree::Tree::Switch(
+                cond.clone(),
+                vec![Entry {
+                    fun: FuncAndBlock {
+                        block: if_false.block,
+                        func: n.k.func,
+                    },
+                    args: if_false.args.clone(),
+                }],
+                Entry {
+                    fun: FuncAndBlock {
+                        block: if_true.block,
+                        func: n.k.func,
+                    },
+                    args: if_true.args.clone(),
+                },
+            )),
+            Terminator::Select {
+                value,
+                targets,
+                default,
+            } => {
+                let mut t2 = vec![];
+                for target in targets {
+                    t2.push(Entry {
+                        fun: FuncAndBlock {
+                            block: target.block,
+                            func: n.k.func,
+                        },
+                        args: target.args.clone(),
+                    });
+                }
+                return Ok(super::tree::Tree::Switch(
+                    value.clone(),
+                    t2,
+                    Entry {
+                        fun: FuncAndBlock {
+                            block: default.block,
+                            func: n.k.func,
+                        },
+                        args: default.args.clone(),
+                    },
+                ));
+            }
+            Terminator::Return { values } => Err(Default::default()),
+            Terminator::Unreachable => Err(Default::default()),
+            Terminator::None => Err(Default::default()),
+        }
+    }
+}
+impl<M: GetModule> Statement<MFCache<M>> for ValueDef{
+    type Stmt = Operator;
+
+    fn into_statement(&self, f: &<MFCache<M> as ModLike>::Fun) -> either::Either<(Self::Stmt, Vec<super::ValID<MFCache<M>>>),usize> {
+        todo!()
+    }
+
+    fn from_statement(s: &Self::Stmt, a: &[super::ValID<MFCache<M>>], f: &mut <MFCache<M> as ModLike>::Fun) -> Self {
+        todo!()
+    }
+
+    fn param(p: usize, f: &mut <MFCache<M> as ModLike>::Fun) -> Self {
+        todo!()
+    }
+
 }

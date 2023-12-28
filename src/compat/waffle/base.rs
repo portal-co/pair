@@ -10,7 +10,7 @@ use waffle::{
 };
 
 use crate::{compat::ArenaLike, utils::waffle::clone_fn};
-#[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Default, Debug, Hash)]
 pub struct FuncAndBlock {
     pub func: waffle::Func,
     pub block: waffle::Block,
