@@ -97,3 +97,5 @@ pub type ValIDFun<F: FunLike> = <F::Arena as ArenaLike<F::Value>>::Id;
 pub type ValID<A: ModLike> = ValIDFun<A::Fun>;
 pub type FunId<A: ModLike> = <A::Code as ArenaLike<A::Fun>>::Id;
 pub type DatId<A: ModLike> = <A::Data as ArenaLike<A::Datum>>::Id;
+pub type Val<A: ModLike> = <A::Fun as FunLike>::Value;
+pub type Term<A: ModLike> = <A::Fun as FunLike>::Terminator;
