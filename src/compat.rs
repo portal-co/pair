@@ -3,9 +3,12 @@ use std::ops::{Index, IndexMut};
 use id_arena::{Arena, Id};
 
 use crate::{Fun, Module, ValueDef};
+#[cfg(feature = "rust")]
+pub mod rust;
+pub mod typed;
+pub mod call;
 #[cfg(feature = "waffle")]
 pub mod waffle;
-pub mod typed;
 pub unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {
     std::mem::transmute(a)
 }
@@ -88,8 +91,7 @@ impl<T, Y, R, D> ModLike for Module<T, Y, R, D> {
         return &mut self.data;
     }
 }
-
-pub type ValID<A: ModLike> =
-    <<A::Fun as FunLike>::Arena as ArenaLike<<A::Fun as FunLike>::Value>>::Id;
+pub type ValIDFun<F: FunLike> = <F::Arena as ArenaLike<F::Value>>::Id;
+pub type ValID<A: ModLike> = ValIDFun<A::Fun>;
 pub type FunId<A: ModLike> = <A::Code as ArenaLike<A::Fun>>::Id;
 pub type DatId<A: ModLike> = <A::Data as ArenaLike<A::Datum>>::Id;

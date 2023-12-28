@@ -78,17 +78,28 @@ impl<M: GetModule> ArenaLike<waffle::ValueDef> for BlockRef<M> {
     }
 }
 impl<M: GetModule> BlockRef<M> {
-    pub fn func(&self) -> Option<&FunctionBody> {
+    pub fn cur(&self) -> Option<&M>{
         if self.cur.is_null() {
             return None;
         }
-        return unsafe { (&mut *self.cur).module().funcs[self.k.func].body() };
+        return unsafe{
+            self.cur.as_ref()
+        };
+    }
+    pub fn cur_mut(&mut self) -> Option<&mut M>{
+        if self.cur.is_null() {
+            return None;
+        }
+        return unsafe{
+            self.cur.as_mut()
+        };
+    }
+    pub fn func(&self) -> Option<&FunctionBody> {
+        return self.cur()?.module().funcs[self.k.func].body();
     }
     pub fn func_mut(&mut self) -> Option<&mut FunctionBody> {
-        if self.cur.is_null() {
-            return None;
-        }
-        return unsafe { (&mut *self.cur).module_mut().funcs[self.k.func].body_mut() };
+        let f = self.k.func;
+        return self.cur_mut()?.module_mut().funcs[f].body_mut();
     }
     pub fn add(&mut self, a: ValueDef) -> Option<Value> {
         let v = self.func_mut()?.add_value(a);
@@ -292,4 +303,9 @@ impl<M: GetModule> ArenaLike<ExportData> for MFCache<M> {
             ExportData::Memory(m) => ExportKey::Memory(self.module_mut().memories.push(m)),
         }
     }
+}
+pub struct Importd{
+    pub module: String,
+    pub func: String,
+    pub sig: Signature
 }

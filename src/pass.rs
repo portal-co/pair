@@ -18,40 +18,40 @@ pub struct PassState<A: ModLike, B: ModLike> {
         BTreeMap<<A::Data as ArenaLike<A::Datum>>::Id, <B::Data as ArenaLike<B::Datum>>::Id>,
 }
 macro_rules! emitter {
-    ($ty:tt => $trait:tt, $a:tt, $b:tt, $p:tt) => {
-        pub trait $trait<$a: ModLike, $b: ModLike, $p: PassBehavior<$a, $b>>: $ty {}
-        impl<$a: ModLike, $b: ModLike, $p: PassBehavior<$a, $b>, T: $ty> $trait<$a, $b, $p> for T {}
+    ($ty:tt => $trait:tt, $a:tt, $b:tt, $e:tt,$p:tt) => {
+        pub trait $trait<$a: ModLike, $b: ModLike, $e,$p: PassBehavior<$a, $b, $e>>: $ty {}
+        impl<$a: ModLike, $b: ModLike,$e, $p: PassBehavior<$a, $b, $e>, T: $ty> $trait<$a, $b, $e, $p> for T {}
     };
 }
-emitter!((FnMut(&mut P, &mut PassState<A,B>, ValID<A>) -> ValID<B>) => ValEmit, A, B, P);
-emitter!((FnMut(&mut P, &mut PassState<A,B>, FunId<A>) -> FunId<B>) => FunEmit, A, B, P);
-emitter!((FnMut(&mut P, &mut PassState<A,B>, DatId<A>) -> DatId<B>) => DatEmit, A, B, P);
-pub trait PassBehavior<A: ModLike, B: ModLike>: Sized {
+emitter!((FnMut(&mut P, &mut PassState<A,B>, ValID<A>) -> Result<ValID<B>,E>) => ValEmit, A, B,E, P);
+emitter!((FnMut(&mut P, &mut PassState<A,B>, FunId<A>) -> Result<FunId<B>,E>) => FunEmit, A, B,E, P);
+emitter!((FnMut(&mut P, &mut PassState<A,B>, DatId<A>) -> Result<DatId<B>,E>) => DatEmit, A, B,E, P);
+pub trait PassBehavior<A: ModLike, B: ModLike,Err>: Sized {
     fn value(
         &mut self,
         ctx: &mut PassState<A, B>,
         fun_ctx: FuncTransformCtx<A, B>,
         it: <A::Fun as FunLike>::Value,
-        value: impl ValEmit<A, B, Self>,
-        fun: impl FunEmit<A, B, Self>,
-        dat: impl DatEmit<A, B, Self>,
-    ) -> <B::Fun as FunLike>::Value;
+        value: impl ValEmit<A, B,Err, Self>,
+        fun: impl FunEmit<A, B, Err,Self>,
+        dat: impl DatEmit<A, B,Err, Self>,
+    ) -> Result<<B::Fun as FunLike>::Value,Err>;
     fn terminator(
         &mut self,
         ctx: &mut PassState<A, B>,
         fun_ctx: FuncTransformCtx<A, B>,
         it: <A::Fun as FunLike>::Terminator,
-        value: impl ValEmit<A, B, Self>,
-        fun: impl FunEmit<A, B, Self>,
-        dat: impl DatEmit<A, B, Self>,
-    ) -> <B::Fun as FunLike>::Terminator;
+        value: impl ValEmit<A, B, Err,Self>,
+        fun: impl FunEmit<A, B, Err,Self>,
+        dat: impl DatEmit<A, B,Err, Self>,
+    ) -> Result<<B::Fun as FunLike>::Terminator,Err>;
     fn datum(
         &mut self,
         ctx: &mut PassState<A, B>,
         def: A::Datum,
-        fun: impl FunEmit<A, B, Self>,
-        dat: impl DatEmit<A, B, Self>,
-    ) -> B::Datum;
+        fun: impl FunEmit<A, B,Err, Self>,
+        dat: impl DatEmit<A, B,Err, Self>,
+    ) -> Result<B::Datum,Err>;
 }
 pub type ValueTransMap<A: ModLike, B: ModLike> = Rc<RefCell<BTreeMap<ValID<A>, ValID<B>>>>;
 impl<A: ModLike, B: ModLike> PassState<A, B>
@@ -68,16 +68,16 @@ where
     <A::Fun as FunLike>::Terminator: Clone,
     A::Datum: Clone,
 {
-    pub fn func_value(
+    pub fn func_value<E>(
         &mut self,
-        w: &mut impl PassBehavior<A, B>,
+        w: &mut impl PassBehavior<A, B,E>,
         f: FunId<A>,
         m: ValueTransMap<A, B>,
         a: ValID<A>,
-    ) -> ValID<B> {
+    ) -> Result<ValID<B>,E> {
         {
             if let Some(x) = m.borrow_mut().get(&a) {
-                return x.clone();
+                return Ok(x.clone());
             }
         }
         let i = self.out.code_mut()[self.code_cache.get(&f).unwrap().clone()]
@@ -99,13 +99,13 @@ where
                 |w, t, f| t.func(w, f),
                 |w, t, d| t.dat(w, d),
             )
-        };
+        }?;
         self.out.code_mut()[self.code_cache.get(&f).unwrap().clone()].all_mut()[i.clone()] = v;
-        return i;
+        return Ok(i);
     }
-    pub fn func(&mut self, w: &mut impl PassBehavior<A, B>, f: FunId<A>) -> FunId<B> {
+    pub fn func<Err>(&mut self, w: &mut impl PassBehavior<A, B,Err>, f: FunId<A>) -> Result<FunId<B>,Err> {
         if let Some(i) = self.code_cache.get(&f) {
-            return i.clone();
+            return Ok(i.clone());
         }
         let me = self.out.code_mut().push(Default::default());
         let m = Rc::new(RefCell::new(BTreeMap::new()));
@@ -123,23 +123,23 @@ where
             |w, t, v| t.func_value(w, f2.clone(), m.clone(), v),
             |w, t, f| t.func(w, f),
             |w, t, d| t.dat(w, d),
-        );
+        )?;
         *self.out.code_mut()[me.clone()].terminator_mut() = t;
-        return me;
+        return Ok(me);
         // });
     }
-    pub fn dat(&mut self, w: &mut impl PassBehavior<A, B>, dd: DatId<A>) -> DatId<B> {
+    pub fn dat<E>(&mut self, w: &mut impl PassBehavior<A, B,E>, dd: DatId<A>) -> Result<DatId<B>,E> {
         if let Some(b) = self.datum_cache.get(&dd) {
-            return b.clone();
+            return Ok(b.clone());
         }
         let d = w.datum(
             self,
             self.input.data()[dd.clone()].clone(),
             |w, t, f| t.func(w, f),
             |w, t, d| t.dat(w, d),
-        );
+        )?;
         let e = self.out.data_mut().push(d);
         self.datum_cache.insert(dd, e.clone());
-        return e;
+        return Ok(e);
     }
 }
