@@ -4,11 +4,11 @@ use id_arena::{Arena, Id};
 
 use crate::{Fun, Module, ValueDef};
 pub mod call;
+pub mod rewrite;
 #[cfg(feature = "rust")]
 pub mod rust;
-pub mod typed;
 pub mod tree;
-pub mod rewrite;
+pub mod typed;
 #[cfg(feature = "waffle")]
 pub mod waffle;
 pub unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {

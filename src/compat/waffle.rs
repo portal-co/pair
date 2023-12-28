@@ -8,7 +8,7 @@ use super::{
     call::Call,
     tree::TreeTerminator,
     typed::{TypedFunLike, TypedValue},
-    FunLike, ModLike ,
+    FunLike, ModLike,
 };
 
 pub mod base;
@@ -145,4 +145,3 @@ impl<M: GetModule, E: Default> TreeTerminator<MFCache<M>, BlockRef<MFCache<M>>, 
         });
     }
 }
-

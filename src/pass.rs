@@ -20,7 +20,7 @@ pub struct PassState<'a, 'b, A: ModLike, B: ModLike> {
     pub datum_cache:
         BTreeMap<<A::Data as ArenaLike<A::Datum>>::Id, <B::Data as ArenaLike<B::Datum>>::Id>,
 }
-impl<'a,'b,A: ModLike,B: ModLike> PassStateT<'a,'b,A,B> for PassState<'a,'b,A,B>{
+impl<'a, 'b, A: ModLike, B: ModLike> PassStateT<'a, 'b, A, B> for PassState<'a, 'b, A, B> {
     fn get_input<'c: 'a>(&'c self) -> &'c A {
         return self.input;
     }
