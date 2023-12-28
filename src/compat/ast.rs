@@ -5,7 +5,7 @@ use either::Either::{self, Right, Left};
 use id_arena::Id;
 use relooper::{BranchMode, RelooperLabel, ShapedBlock};
 
-use crate::ValueDef;
+// use crate::ValueDef;
 use crate::utils::{my_hash, var_hash, param_hash};
 
 use super::ValIDFun;

@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use id_arena::{Arena, Id};
 
-use crate::{Fun, Module, ValueDef};
+// use crate::{Fun, Module, ValueDef};
 pub mod call;
 pub mod rewrite;
 #[cfg(feature = "rust")]
@@ -40,29 +40,29 @@ pub trait FunLike {
     fn terminator(&self) -> &Self::Terminator;
     fn terminator_mut(&mut self) -> &mut Self::Terminator;
 }
-impl<T, Y, R, D> FunLike for Fun<T, Y, R, D> {
-    type Value = ValueDef<T, Y, R, D>;
+// impl<T, Y, R, D> FunLike for Fun<T, Y, R, D> {
+//     type Value = ValueDef<T, Y, R, D>;
 
-    type Arena = Arena<Self::Value>;
+//     type Arena = Arena<Self::Value>;
 
-    fn all(&self) -> &Self::Arena {
-        return &self.values;
-    }
+//     fn all(&self) -> &Self::Arena {
+//         return &self.values;
+//     }
 
-    fn all_mut(&mut self) -> &mut Self::Arena {
-        return &mut self.values;
-    }
+//     fn all_mut(&mut self) -> &mut Self::Arena {
+//         return &mut self.values;
+//     }
 
-    type Terminator = R;
+//     type Terminator = R;
 
-    fn terminator(&self) -> &Self::Terminator {
-        return &self.terminator;
-    }
+//     fn terminator(&self) -> &Self::Terminator {
+//         return &self.terminator;
+//     }
 
-    fn terminator_mut(&mut self) -> &mut Self::Terminator {
-        return &mut self.terminator;
-    }
-}
+//     fn terminator_mut(&mut self) -> &mut Self::Terminator {
+//         return &mut self.terminator;
+//     }
+// }
 pub trait ModLike {
     type Fun: FunLike;
     type Code: ArenaLike<Self::Fun>;
@@ -73,31 +73,31 @@ pub trait ModLike {
     fn data(&self) -> &Self::Data;
     fn data_mut(&mut self) -> &mut Self::Data;
 }
-impl<T, Y, R, D> ModLike for Module<T, Y, R, D> {
-    type Fun = Fun<T, Y, R, D>;
+// impl<T, Y, R, D> ModLike for Module<T, Y, R, D> {
+//     type Fun = Fun<T, Y, R, D>;
 
-    type Code = Arena<Fun<T, Y, R, D>>;
+//     type Code = Arena<Fun<T, Y, R, D>>;
 
-    fn code(&self) -> &Self::Code {
-        return &self.code;
-    }
+//     fn code(&self) -> &Self::Code {
+//         return &self.code;
+//     }
 
-    fn code_mut(&mut self) -> &mut Self::Code {
-        return &mut self.code;
-    }
+//     fn code_mut(&mut self) -> &mut Self::Code {
+//         return &mut self.code;
+//     }
 
-    type Datum = D;
+//     type Datum = D;
 
-    type Data = Arena<D>;
+//     type Data = Arena<D>;
 
-    fn data(&self) -> &Self::Data {
-        return &self.data;
-    }
+//     fn data(&self) -> &Self::Data {
+//         return &self.data;
+//     }
 
-    fn data_mut(&mut self) -> &mut Self::Data {
-        return &mut self.data;
-    }
-}
+//     fn data_mut(&mut self) -> &mut Self::Data {
+//         return &mut self.data;
+//     }
+// }
 pub type ValIDFun<F: FunLike> = <F::Arena as ArenaLike<F::Value>>::Id;
 pub type ValID<A: ModLike> = ValIDFun<A::Fun>;
 pub type FunId<A: ModLike> = <A::Code as ArenaLike<A::Fun>>::Id;

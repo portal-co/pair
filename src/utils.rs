@@ -2,7 +2,6 @@ use either::Either;
 
 use crate::{
     compat::{ArenaLike, FunId, FunLike, ModLike, ValIDFun, ValID},
-    Value, ValueDef,
 };
 use std::{hash::*, collections::hash_map::DefaultHasher};
 
