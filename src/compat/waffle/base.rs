@@ -78,21 +78,17 @@ impl<M: GetModule> ArenaLike<waffle::ValueDef> for BlockRef<M> {
     }
 }
 impl<M: GetModule> BlockRef<M> {
-    pub fn cur(&self) -> Option<&M>{
+    pub fn cur(&self) -> Option<&M> {
         if self.cur.is_null() {
             return None;
         }
-        return unsafe{
-            self.cur.as_ref()
-        };
+        return unsafe { self.cur.as_ref() };
     }
-    pub fn cur_mut(&mut self) -> Option<&mut M>{
+    pub fn cur_mut(&mut self) -> Option<&mut M> {
         if self.cur.is_null() {
             return None;
         }
-        return unsafe{
-            self.cur.as_mut()
-        };
+        return unsafe { self.cur.as_mut() };
     }
     pub fn func(&self) -> Option<&FunctionBody> {
         return self.cur()?.module().funcs[self.k.func].body();
@@ -304,8 +300,8 @@ impl<M: GetModule> ArenaLike<ExportData> for MFCache<M> {
         }
     }
 }
-pub struct Importd{
+pub struct Importd {
     pub module: String,
     pub func: String,
-    pub sig: Signature
+    pub sig: Signature,
 }

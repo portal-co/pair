@@ -3,10 +3,10 @@ use std::ops::{Index, IndexMut};
 use id_arena::{Arena, Id};
 
 use crate::{Fun, Module, ValueDef};
+pub mod call;
 #[cfg(feature = "rust")]
 pub mod rust;
 pub mod typed;
-pub mod call;
 #[cfg(feature = "waffle")]
 pub mod waffle;
 pub unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {
