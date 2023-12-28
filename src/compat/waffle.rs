@@ -1,4 +1,4 @@
-use waffle::{Import, Type, ValueDef};
+use waffle::{BlockTarget, Import, Terminator, Type, ValueDef};
 
 use crate::utils::R;
 
@@ -6,8 +6,9 @@ use self::base::{BlockRef, ExportData, GetModule, Importd, MFCache};
 
 use super::{
     call::Call,
+    tree::TreeTerminator,
     typed::{TypedFunLike, TypedValue},
-    FunLike, ModLike,
+    FunLike, ModLike ,
 };
 
 pub mod base;
@@ -108,3 +109,40 @@ impl<M: GetModule, E: Default> Call<MFCache<M>, BlockRef<MFCache<M>>, Importd, E
         ));
     }
 }
+impl<M: GetModule, E: Default> TreeTerminator<MFCache<M>, BlockRef<MFCache<M>>, E> for Terminator {
+    fn just(n: &mut BlockRef<MFCache<M>>, x: super::tree::Entry<MFCache<M>>) -> Result<Self, E> {
+        let f = n.k.func;
+        return Ok(Terminator::Br {
+            target: BlockTarget {
+                args: x.args,
+                block: n.cur_mut().r()?[x.fun].block_in_func(f).r()?,
+            },
+        });
+    }
+
+    fn switch(
+        n: &mut BlockRef<MFCache<M>>,
+        v: super::ValIDFun<BlockRef<MFCache<M>>>,
+        mut go: Vec<super::tree::Entry<MFCache<M>>>,
+        default: super::tree::Entry<MFCache<M>>,
+    ) -> Result<Self, E> {
+        let f = n.k.func;
+        let default = BlockTarget {
+            args: default.args,
+            block: n.cur_mut().r()?[default.fun].block_in_func(f).r()?,
+        };
+        let mut params = vec![];
+        for g in go.drain(..) {
+            params.push(BlockTarget {
+                args: g.args,
+                block: n.cur_mut().r()?[g.fun].block_in_func(f).r()?,
+            })
+        }
+        return Ok(Terminator::Select {
+            value: v,
+            targets: params,
+            default: default,
+        });
+    }
+}
+

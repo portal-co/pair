@@ -8,7 +8,10 @@ pub struct FuncTransformCtx<A: ModLike, B: ModLike> {
     pub input: <A::Code as ArenaLike<A::Fun>>::Id,
     pub output: <B::Code as ArenaLike<B::Fun>>::Id,
 }
-
+pub trait PassStateT<'a, 'b, A: ModLike, B: ModLike> {
+    fn get_input<'c: 'a>(&'c self) -> &'c A;
+    fn get_output<'c: 'b>(&'c mut self) -> &'c mut B;
+}
 pub struct PassState<'a, 'b, A: ModLike, B: ModLike> {
     pub input: &'a A,
     pub out: &'b mut B,
@@ -17,48 +20,73 @@ pub struct PassState<'a, 'b, A: ModLike, B: ModLike> {
     pub datum_cache:
         BTreeMap<<A::Data as ArenaLike<A::Datum>>::Id, <B::Data as ArenaLike<B::Datum>>::Id>,
 }
+impl<'a,'b,A: ModLike,B: ModLike> PassStateT<'a,'b,A,B> for PassState<'a,'b,A,B>{
+    fn get_input<'c: 'a>(&'c self) -> &'c A {
+        return self.input;
+    }
+
+    fn get_output<'c: 'b>(&'c mut self) -> &'c mut B {
+        return self.out;
+    }
+}
 macro_rules! emitter {
-    ($ty:tt => $trait:tt, $a:tt, $b:tt, $e:tt,$p:tt,$c:lifetime,$d:lifetime) => {
-        pub trait $trait<$c, $d, $a: ModLike, $b: ModLike, $e, $p: PassBehavior<$a, $b, $e>>:
-            $ty
+    ($ty:tt => $trait:tt, $a:tt, $b:tt, $e:tt,$p:tt,$s:tt,$c:lifetime,$d:lifetime) => {
+        pub trait $trait<
+            $c,
+            $d,
+            $a: ModLike,
+            $b: ModLike,
+            $s: PassStateT<$c, $d, $a, $b>,
+            $e,
+            $p: PassBehavior<$a, $b, $e>,
+        >: $ty
         {
         }
-        impl<$c, $d, $a: ModLike, $b: ModLike, $e, $p: PassBehavior<$a, $b, $e>, T: $ty>
-            $trait<$c, $d, $a, $b, $e, $p> for T
+        impl<
+                $c,
+                $d,
+                $a: ModLike,
+                $b: ModLike,
+                $s: PassStateT<$c, $d, $a, $b>,
+                $e,
+                $p: PassBehavior<$a, $b, $e>,
+                T: $ty,
+            > $trait<$c, $d, $a, $b, $s, $e, $p> for T
         {
         }
     };
 }
-emitter!((FnMut(&mut P, &mut PassState<'a,'b,A,B>, ValID<A>) -> Result<ValID<B>,E>) => ValEmit, A, B,E, P,'a,'b);
-emitter!((FnMut(&mut P, &mut PassState<'a,'b,A,B>, FunId<A>) -> Result<FunId<B>,E>) => FunEmit, A, B,E, P,'a,'b);
-emitter!((FnMut(&mut P, &mut PassState<'a,'b,A,B>, DatId<A>) -> Result<DatId<B>,E>) => DatEmit, A, B,E, P,'a,'b);
+emitter!((FnMut(&mut P, &mut S, ValID<A>) -> Result<ValID<B>,E>) => ValEmit, A, B,E, P,S,'a,'b);
+emitter!((FnMut(&mut P, &mut S, FunId<A>) -> Result<FunId<B>,E>) => FunEmit, A, B,E, P,S,'a,'b);
+emitter!((FnMut(&mut P, &mut S, DatId<A>) -> Result<DatId<B>,E>) => DatEmit, A, B,E, P,S,'a,'b);
 pub trait PassBehavior<A: ModLike, B: ModLike, Err>: Sized {
-    fn value<'a, 'b>(
+    fn value<'a, 'b, S: PassStateT<'a, 'b, A, B>>(
         &mut self,
-        ctx: &mut PassState<'a, 'b, A, B>,
+        ctx: &mut S,
         fun_ctx: FuncTransformCtx<A, B>,
         it: <A::Fun as FunLike>::Value,
-        value: impl ValEmit<'a, 'b, A, B, Err, Self>,
-        fun: impl FunEmit<'a, 'b, A, B, Err, Self>,
-        dat: impl DatEmit<'a, 'b, A, B, Err, Self>,
+        value: impl ValEmit<'a, 'b, A, B, S, Err, Self>,
+        fun: impl FunEmit<'a, 'b, A, B, S, Err, Self>,
+        dat: impl DatEmit<'a, 'b, A, B, S, Err, Self>,
     ) -> Result<<B::Fun as FunLike>::Value, Err>;
-    fn terminator<'a, 'b>(
+    fn terminator<'a, 'b, S: PassStateT<'a, 'b, A, B>>(
         &mut self,
-        ctx: &mut PassState<A, B>,
+        ctx: &mut S,
         fun_ctx: FuncTransformCtx<A, B>,
         it: <A::Fun as FunLike>::Terminator,
-        value: impl ValEmit<'a, 'b, A, B, Err, Self>,
-        fun: impl FunEmit<'a, 'b, A, B, Err, Self>,
-        dat: impl DatEmit<'a, 'b, A, B, Err, Self>,
+        value: impl ValEmit<'a, 'b, A, B, S, Err, Self>,
+        fun: impl FunEmit<'a, 'b, A, B, S, Err, Self>,
+        dat: impl DatEmit<'a, 'b, A, B, S, Err, Self>,
     ) -> Result<<B::Fun as FunLike>::Terminator, Err>;
-    fn datum<'a, 'b>(
+    fn datum<'a, 'b, S: PassStateT<'a, 'b, A, B>>(
         &mut self,
-        ctx: &mut PassState<A, B>,
+        ctx: &mut S,
         def: A::Datum,
-        fun: impl FunEmit<'a, 'b, A, B, Err, Self>,
-        dat: impl DatEmit<'a, 'b, A, B, Err, Self>,
+        fun: impl FunEmit<'a, 'b, A, B, S, Err, Self>,
+        dat: impl DatEmit<'a, 'b, A, B, S, Err, Self>,
     ) -> Result<B::Datum, Err>;
 }
+
 pub type ValueTransMap<A: ModLike, B: ModLike> = Rc<RefCell<BTreeMap<ValID<A>, ValID<B>>>>;
 impl<'a, 'b, A: ModLike, B: ModLike> PassState<'a, 'b, A, B>
 where

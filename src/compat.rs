@@ -7,6 +7,8 @@ pub mod call;
 #[cfg(feature = "rust")]
 pub mod rust;
 pub mod typed;
+pub mod tree;
+pub mod rewrite;
 #[cfg(feature = "waffle")]
 pub mod waffle;
 pub unsafe fn unbound<'a, 'b, T>(a: &'a mut T) -> &'b mut T {
