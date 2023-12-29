@@ -1,7 +1,7 @@
 use std::{
     cell::UnsafeCell,
     collections::BTreeMap,
-    ops::{Deref, DerefMut, Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut}, marker::PhantomPinned, pin::Pin,
 };
 
 use waffle::{
@@ -9,7 +9,7 @@ use waffle::{
     Memory, MemoryData, Signature, SignatureData, Table, TableData, Type, Value, ValueDef,
 };
 
-use crate::{compat::ArenaLike, utils::waffle::clone_fn};
+use crate::{compat::{ArenaLike, OrderedArenaLike}, utils::waffle::clone_fn};
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Default, Debug, Hash)]
 pub struct FuncAndBlock {
     pub func: waffle::Func,
@@ -58,6 +58,15 @@ pub trait GetModule {
     fn module(&self) -> &waffle::Module<'static>;
     fn module_mut(&mut self) -> &mut waffle::Module<'static>;
 }
+impl GetModule for waffle::Module<'static>{
+    fn module(&self) -> &waffle::Module<'static> {
+        self
+    }
+
+    fn module_mut(&mut self) -> &mut waffle::Module<'static> {
+        self
+    }
+}
 impl<M: GetModule> Index<waffle::Value> for BlockRef<M> {
     type Output = waffle::ValueDef;
 
@@ -75,6 +84,15 @@ impl<M: GetModule> ArenaLike<waffle::ValueDef> for BlockRef<M> {
 
     fn push(&mut self, a: waffle::ValueDef) -> Self::Id {
         return self.add(a).unwrap();
+    }
+}
+impl<M: GetModule> OrderedArenaLike<waffle::ValueDef> for BlockRef<M>{
+    fn push_after(&mut self, a: waffle::ValueDef, after: Self::Id) -> Self::Id {
+        return self.add_after(a, Some(after)).unwrap();
+    }
+
+    fn push_just_before(&mut self, a: waffle::ValueDef, before: Self::Id) -> Self::Id {
+        return self.add_just_before(a, before).unwrap();
     }
 }
 impl<M: GetModule> BlockRef<M> {
@@ -97,10 +115,36 @@ impl<M: GetModule> BlockRef<M> {
         let f = self.k.func;
         return self.cur_mut()?.module_mut().funcs[f].body_mut();
     }
-    pub fn add(&mut self, a: ValueDef) -> Option<Value> {
+    pub fn add(&mut self, a: ValueDef) -> Option<Value>{
+        return self.add_after(a, None);
+    }
+    pub fn add_after(&mut self, a: ValueDef, after: Option<Value>) -> Option<Value>{
         let v = self.func_mut()?.add_value(a);
         let l = self.k.block;
-        self.func_mut()?.append_to_block(l, v);
+        let mut i = std::mem::take(&mut self.func_mut()?.blocks[l].insts);
+        for j in i{
+            self.func_mut()?.blocks[l].insts.push(j);
+            if let Some(after) = after{
+            if j == after{
+                self.func_mut()?.append_to_block(l, v);
+            }
+        }
+        }
+        if let None = after{
+            self.func_mut()?.append_to_block(l, v);
+        }
+        return Some(v);
+    }
+    pub fn add_just_before(&mut self, a: ValueDef, before: Value) -> Option<Value>{
+        let v = self.func_mut()?.add_value(a);
+        let l = self.k.block;
+        let mut i = std::mem::take(&mut self.func_mut()?.blocks[l].insts);
+        for j in i{
+            if j == before{
+                self.func_mut()?.append_to_block(l, v);
+            }
+            self.func_mut()?.blocks[l].insts.push(j);
+        }
         return Some(v);
     }
     pub fn params(&self) -> Option<Vec<(Type, Value)>> {
@@ -178,6 +222,7 @@ pub struct MFCache<M: GetModule> {
     ptr: Option<M>,
     cache: UnsafeCell<BTreeMap<FuncAndBlock, BlockRef<MFCache<M>>>>,
     data_cache: UnsafeCell<BTreeMap<ExportKey, ExportData>>,
+    _pinned: PhantomPinned,
 }
 impl<M: GetModule> Drop for MFCache<M> {
     fn drop(&mut self) {
@@ -199,12 +244,13 @@ impl<M: GetModule> MFCache<M> {
         self.flush();
         return self.ptr.take().unwrap();
     }
-    pub fn from_inner(m: M) -> Self {
-        return Self {
+    pub fn from_inner(m: M) -> Pin<Box<Self>> {
+        return Box::pin(Self {
             ptr: Some(m),
             cache: UnsafeCell::new(BTreeMap::new()),
             data_cache: UnsafeCell::new(BTreeMap::new()),
-        };
+            _pinned: PhantomPinned,
+        });
     }
     pub fn flush(&mut self) {
         for (k, v) in std::mem::take(self.data_cache.get_mut()) {

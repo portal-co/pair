@@ -24,6 +24,10 @@ pub trait ArenaLike<T>: Index<Self::Id, Output = T> + IndexMut<Self::Id, Output 
     type Id;
     fn push(&mut self, a: T) -> Self::Id;
 }
+pub trait OrderedArenaLike<T>: ArenaLike<T>{
+    fn push_after(&mut self, a: T, after: Self::Id) -> Self::Id;
+    fn push_just_before(&mut self, a: T, before: Self::Id) -> Self::Id;
+}
 impl<T> ArenaLike<T> for Arena<T> {
     type Id = Id<T>;
 

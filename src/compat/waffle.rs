@@ -160,20 +160,20 @@ impl<M: GetModule, E: Default> UnTreeTerminator<MFCache<M>, BlockRef<MFCache<M>>
     fn get_tree(
         &self,
         n: &BlockRef<MFCache<M>>,
-    ) -> Result<super::tree::Tree<MFCache<M>, BlockRef<MFCache<M>>>, E> {
+    ) -> Result<Option<super::tree::Tree<MFCache<M>, BlockRef<MFCache<M>>>>, E> {
         match self {
-            Terminator::Br { target } => Ok(super::tree::Tree::Just(Entry {
+            Terminator::Br { target } => Ok(Some(super::tree::Tree::Just(Entry {
                 fun: FuncAndBlock {
                     block: target.block,
                     func: n.k.func,
                 },
                 args: target.args.clone(),
-            })),
+            }))),
             Terminator::CondBr {
                 cond,
                 if_true,
                 if_false,
-            } => Ok(super::tree::Tree::Switch(
+            } => Ok(Some(super::tree::Tree::Switch(
                 cond.clone(),
                 vec![Entry {
                     fun: FuncAndBlock {
@@ -189,7 +189,7 @@ impl<M: GetModule, E: Default> UnTreeTerminator<MFCache<M>, BlockRef<MFCache<M>>
                     },
                     args: if_true.args.clone(),
                 },
-            )),
+            ))),
             Terminator::Select {
                 value,
                 targets,
@@ -205,7 +205,7 @@ impl<M: GetModule, E: Default> UnTreeTerminator<MFCache<M>, BlockRef<MFCache<M>>
                         args: target.args.clone(),
                     });
                 }
-                return Ok(super::tree::Tree::Switch(
+                return Ok(Some(super::tree::Tree::Switch(
                     value.clone(),
                     t2,
                     Entry {
@@ -215,11 +215,11 @@ impl<M: GetModule, E: Default> UnTreeTerminator<MFCache<M>, BlockRef<MFCache<M>>
                         },
                         args: default.args.clone(),
                     },
-                ));
+                )));
             }
-            Terminator::Return { values } => Err(Default::default()),
-            Terminator::Unreachable => Err(Default::default()),
-            Terminator::None => Err(Default::default()),
+            Terminator::Return { values } => Ok(None),
+            Terminator::Unreachable => Ok(None),
+            Terminator::None => Ok(None),
         }
     }
 }

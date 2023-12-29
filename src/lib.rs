@@ -10,3 +10,5 @@ pub mod adapt;
 pub mod compat;
 pub mod pass;
 pub mod utils;
+#[cfg(test)]
+mod tests;

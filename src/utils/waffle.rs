@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use waffle::{
-    cfg::CFGInfo, pool::ListRef, Block, BlockTarget, Func, FunctionBody, Memory, MemoryArg, Module,
-    Operator, Signature, SignatureData, Terminator, Type, Value, ValueDef,
+    cfg::CFGInfo, pool::ListRef, Block, BlockTarget, FrontendOptions, Func, FunctionBody, Memory,
+    MemoryArg, Module, Operator, Signature, SignatureData, Terminator, Type, Value, ValueDef,
 };
 
 pub fn tweak_value(
@@ -151,3 +151,8 @@ pub fn clone_fn(f: &mut FunctionBody, basis: &FunctionBody) -> FunCloneRes {
     return FunCloneRes { all };
 }
 pub mod vendor;
+pub fn parse(a: &[u8]) -> anyhow::Result<waffle::Module<'static>> {
+    let mut m = waffle::Module::from_wasm_bytes(a, &FrontendOptions::default())?;
+    m.expand_all_funcs()?;
+    return Ok(m.without_orig_bytes());
+}
