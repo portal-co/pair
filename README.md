@@ -1,13 +1,14 @@
 # pair
 
 ## Description
-Project pair
+"Portal Alterable IR". An Intermediate Representation (SSA-based) for Portal compilers, utilizing `waffle` and `relooper`.
 
 ## Goals
-- [ ] Add project goals
+- [ ] Define IR structure
+- [ ] Implement serialization (Serde)
 
 ## Progress
-- [ ] Initial setup
+- [ ] Crate setup (v0.2.0)
 
 ---
 *AI assisted*
